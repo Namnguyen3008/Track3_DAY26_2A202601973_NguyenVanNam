@@ -1,3 +1,11 @@
+# BÀI TẬP DAY 26 — MCP & TOOLS INTEGRATION
+
+- **Họ và tên**: Nguyễn Văn Nam
+- **Mã học viên**: 2A202601973
+- **Repository**: https://github.com/Namnguyen3008/Track3_DAY26_2A202601973_NguyenVanNam
+
+---
+
 # Phân biệt MCP và Function Calling
 
 Đây là hai khái niệm hay bị nhầm lẫn nhưng thực ra ở **hai tầng khác nhau**, và **bổ sung cho nhau** chứ không thay thế.
