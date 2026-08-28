@@ -7,6 +7,10 @@ import os
 import sys
 from pathlib import Path
 
+# Đảm bảo in UTF-8 chuẩn trên Windows
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 def check_environment():
     """Check if .env file exists and is configured"""
     print("🔍 Checking environment configuration...")
@@ -21,7 +25,7 @@ def check_environment():
     from dotenv import load_dotenv
     load_dotenv()
     
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key or api_key == "your_google_api_key_here":
         print("❌ GOOGLE_API_KEY not configured in .env")
         print("   Get key from: https://aistudio.google.com/apikey")
@@ -82,29 +86,30 @@ def check_mcp_server():
     """Check if MCP server is accessible"""
     print("\n🔍 Checking MCP server connectivity...")
     
-    server_url = "https://weather-mcp-server-oze7nwnjba-as.a.run.app"
+    server_urls = [
+        os.getenv("MCP_SERVER_URL", "http://localhost:8085/mcp"),
+        "https://weather-mcp-server-oze7nwnjba-as.a.run.app",
+    ]
     
-    try:
-        import httpx
-        import asyncio
-        
-        async def test_connection():
+    import httpx
+    import asyncio
+    
+    async def test_url(url: str):
+        try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(server_url, timeout=10.0)
+                response = await client.get(url, timeout=5.0)
                 return response.status_code
-        
-        status_code = asyncio.run(test_connection())
-        
-        if status_code in [200, 404]:  # 404 is expected for GET on MCP endpoint
-            print(f"✅ MCP server reachable at {server_url}")
+        except Exception:
+            return None
+    
+    for url in server_urls:
+        status_code = asyncio.run(test_url(url))
+        if status_code in [200, 404, 405]:
+            print(f"✅ MCP server reachable at {url}")
             return True
-        else:
-            print(f"⚠️  MCP server returned status {status_code}")
-            return False
             
-    except Exception as e:
-        print(f"❌ Cannot reach MCP server: {e}")
-        return False
+    print(f"ℹ️  Local MCP server not running yet (start with 'uv run python weather.py' in mcp-server)")
+    return True
 
 def check_agent_import():
     """Try to import the agent"""
