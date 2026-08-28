@@ -4,6 +4,10 @@ import asyncio
 import json
 import sys
 
+# Đảm bảo in tiếng Việt chuẩn trên Windows
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 

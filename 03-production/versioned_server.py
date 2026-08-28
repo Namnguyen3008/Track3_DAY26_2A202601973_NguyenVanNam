@@ -15,7 +15,12 @@ Cách chạy:
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
+
+# Đảm bảo in tiếng Việt chuẩn trên Windows
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 from mcp.server.mcpserver import MCPServer
 
