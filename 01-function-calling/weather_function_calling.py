@@ -3,18 +3,37 @@
 Tool `get_weather` được định nghĩa schema thủ công VÀ thực thi ngay trong
 chính file app này. Model chỉ QUYẾT ĐỊNH gọi tool nào; app mới là nơi chạy.
 
+Được cấu hình Round-Robin luân phiên giữa 2 model:
+- gemini-3.1-flash-lite
+- gemini-3.5-flash-lite
+
 Cách chạy:
     pip install -r ../requirements.txt
-    export GEMINI_API_KEY=...
     python weather_function_calling.py
 """
+
+from __future__ import annotations
+
+import itertools
+import json
+import os
+import sys
+
+# Đảm bảo in tiếng Việt & emoji chuẩn trên mọi OS (đặc biệt là Windows)
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 from google import genai
 from google.genai import types
 
-client = genai.Client()
+# Cấu hình API Key từ biến môi trường
+API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
-MODEL = "gemini-2.5-flash"
+client = genai.Client(api_key=API_KEY) if API_KEY else genai.Client()
+
+# Danh sách 2 model chạy Round-Robin
+MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
+_model_cycle = itertools.cycle(MODELS)
 
 SYSTEM_INSTRUCTION = (
     "Bạn là trợ lý thời tiết thân thiện, trả lời bằng tiếng Việt tự nhiên. "
@@ -64,21 +83,33 @@ def get_weather(city: str) -> str:
             "gió": {"hướng": "Đông", "tốc_độ": "10 km/h"},
         },
     }
-    import json
 
-    default = {"nhiệt_độ": "28°C", "thời_tiết": "không có dữ liệu chi tiết"}
-    return json.dumps({"city": city, **mock_data.get(city, default)}, ensure_ascii=False)
+    # Chuẩn hóa tìm kiếm theo tên không dấu / gần đúng nếu cần
+    city_lookup = city.strip()
+    if city_lookup.lower() in ["hanoi", "ha noi"]:
+        city_lookup = "Hà Nội"
+    elif city_lookup.lower() in ["danang", "da nang"]:
+        city_lookup = "Đà Nẵng"
+    elif city_lookup.lower() in ["hcm", "ho chi minh", "saigon"]:
+        city_lookup = "Hồ Chí Minh"
+
+    default = {"nhiệt_độ": "28°C", "thời_tiết": "nắng nhẹ, thời tiết dễ chịu"}
+    return json.dumps({"city": city, **mock_data.get(city_lookup, default)}, ensure_ascii=False)
 
 
-def run(prompt: str) -> str:
+def run(prompt: str, model: str | None = None) -> str:
     """Gửi *prompt* tới Gemini, tự động xử lý function calling và trả về câu trả lời cuối."""
+    # Chọn model theo cơ chế round-robin nếu không chỉ định rõ
+    chosen_model = model or next(_model_cycle)
+    print(f"🤖 [Model đang xử lý]: {chosen_model}")
+
     contents: list[types.Content] = [
         types.Content(role="user", parts=[types.Part.from_text(text=prompt)])
     ]
 
     # 3. Gọi model — model quyết định có gọi tool hay không
     resp = client.models.generate_content(
-        model=MODEL,
+        model=chosen_model,
         contents=contents,
         config=types.GenerateContentConfig(
             tools=TOOLS,
@@ -105,7 +136,7 @@ def run(prompt: str) -> str:
         # Gửi kết quả tool trả về cho model
         contents.append(types.Content(role="user", parts=function_responses))
         resp = client.models.generate_content(
-            model=MODEL,
+            model=chosen_model,
             contents=contents,
             config=types.GenerateContentConfig(
                 tools=TOOLS,
@@ -118,6 +149,16 @@ def run(prompt: str) -> str:
 
 
 if __name__ == "__main__":
-    question = "Thời tiết Hà Nội và Đà Nẵng hôm nay thế nào?"
-    print(f"User: {question}\n")
-    print("Trả lời:", run(question))
+    print("=== DEMO FUNCTION CALLING VỚI ROUND-ROBIN 2 MODELS ===")
+    print(f"Danh sách models: {MODELS}\n")
+
+    questions = [
+        "Thời tiết Hà Nội hôm nay thế nào?",
+        "Thời tiết Đà Nẵng và Hồ Chí Minh hôm nay có mưa không?",
+    ]
+
+    for i, q in enumerate(questions, 1):
+        print(f"--- Lượt {i} ---")
+        print(f"User: {q}")
+        answer = run(q)
+        print(f"Trả lời:\n{answer}\n")
